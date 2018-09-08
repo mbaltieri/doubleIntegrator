@@ -48,15 +48,15 @@ A_c = np.array([[1, 0], [0, 1]])               # state transition matrix
 B_c = np.array([[1, 0], [0, 1]])               # input matrix
 H_c = np.array([[-1, -1]])             # measurement matrix
 
-S = np.zeros((variables, variables))
-S_dot = np.zeros((variables, variables))
+V = np.zeros((iterations, variables, variables))
+V_dot = np.zeros((variables, variables))
 L = np.zeros((variables, variables))
 
 # estimator
 Z = 1
 W = 50 * np.array([[1, 0], [0, 1]])
 
-P = np.zeros((variables, variables))
+P = np.zeros((iterations, variables, variables))
 P_dot = np.zeros((variables, variables))
 K = np.zeros((variables, variables))
 
@@ -75,8 +75,14 @@ x = 10 * np.random.rand(variables, 1) - 5
 x_c = 10 * np.random.rand(variables, 1) - 5
 x_c = x + .1 * np.random.rand(variables, 1)
 
-P = scipy.linalg.solve_continuous_are(A, B, W, Z)
-S = scipy.linalg.solve_continuous_are(A, B, Q, R)
+# use Riccati equations solver in scipy
+#P = scipy.linalg.solve_continuous_are(A, B, W, Z)
+#V = scipy.linalg.solve_continuous_are(A, B, Q, R)
+
+for i in range(iterations-1, 1, -1):
+    V_dot = - (np.dot(A.transpose(), V[i, :, :]) + np.dot(V[i, :, :], A) + Q - np.dot(L.transpose(), np.dot(R, L)))
+    V[i-1, :, :] = V[i, :, :] + dt * V_dot
+    L = np.dot(1/R, np.dot(B.transpose(), V[i, :, :]))
 
 for i in range(iterations-1):
     # simulate real dynamics
@@ -84,24 +90,21 @@ for i in range(iterations-1):
     x += dt * x_dot
     
     y = np.dot(H, x)
+    a = P[i, :, :]
     
     # control dynamics
     # (estimate state for output feedback)
-    #x_dot_c = np.dot(A_c, x_c) + np.dot(B_c, y)
     x_dot_c = np.dot(A, x_c) + np.dot(B, u) + np.dot(K, (y - np.dot(H, x_c)))
-#    P_dot = np.dot(A, P) + np.dot(P, A.transpose()) + W - np.dot(K, np.dot(Z, K.transpose()))
-    K = np.dot(P, np.dot(H.transpose(), 1/Z))
+    P_dot = np.dot(A, P[i, :, :]) + np.dot(P[i, :, :], A.transpose()) + W - np.dot(K, np.dot(Z, K.transpose()))
+    K = np.dot(P[i, :, :], np.dot(H.transpose(), 1/Z))
     
     x_c += dt * x_dot_c
-#    P += dt * P_dot
+    P[i+1, :, :] = P[i, :, :] + dt * P_dot
     
     # (create controller)
-#    S_dot = np.dot(A.transpose(), S) + np.dot(S, A) + Q - np.dot(L.transpose(), np.dot(R, L))               # not negative because here I'm not really solving a Riccati equation, could solve it outside this loop for LTI systems and for T -> infnty
-    L = np.dot(1/R, np.dot(B.transpose(), S))
+    L = np.dot(1/R, np.dot(B.transpose(), V[i, :, :]))
     
-#    S += dt * S_dot
-#    u = np.dot(H_c, x_c)
-    u = - np.dot(L, y)    
+    u = - np.dot(L, x_c)    
     
     # save history
     x_history[i,:,:] = x
