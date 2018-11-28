@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from autograd import grad, jacobian
 
 dt = .01
-T = 5
+T = 15
 T_switch = int(T/3)
 iterations = int(T / dt)
 alpha = 100000.                                              # drift in Generative Model
@@ -65,11 +65,7 @@ dFdmu_gamma_z = np.zeros((hidden_causes, temp_orders_states))
 Dmu_x = np.zeros((hidden_states, temp_orders_states))
 Dmu_v = np.zeros((hidden_causes, temp_orders_states))
 k_mu_x = 1                                                  # learning rate perception
-k_a = 1                                                     # learning rate action
-k_mu_gamma_z = 1                                            # learning rate attention
-k_mu_gamma_w = 1                                            # learning rate attention
-kappa_z = 100                                                 # damping on precisions minimisation
-kappa_w = 50                                                 # damping on precisions minimisation
+k_a = 1000000                                                     # learning rate action
 
 # noise on sensory input (world - generative process)
 #gamma_z = -16 * np.ones((obs_states, temp_orders_states - 1))  # log-precisions
@@ -85,7 +81,7 @@ for i in range(obs_states):
         z[:, i, j] = sigma_z[i, j] * np.random.randn(1, iterations)
 
 # noise on motion of hidden states (world - generative process)
-gamma_w = 2                                                  # log-precision
+gamma_w = 4                                                  # log-precision
 pi_w = np.exp(gamma_w) * np.ones((hidden_states, temp_orders_states - 1))
 pi_w[0, 1] = pi_w[0, 0] / (2 * gamma)
 sigma_w = 1 / (np.sqrt(pi_w))
@@ -98,11 +94,11 @@ for i in range(hidden_states):
 # agent's estimates of the noise (agent - generative model)
 #mu_gamma_z = -16 * np.ones((obs_states, temp_orders_states - 1))  # log-precisions
 #mu_gamma_z[0, 0] = -8
-mu_gamma_z = 4 * np.ones((obs_states, temp_orders_states - 1))    # log-precisions
+mu_gamma_z = -7 * np.ones((obs_states, temp_orders_states - 1))    # log-precisions
 mu_gamma_z[0, 1] = mu_gamma_z[0, 0] - np.log(2 * gamma)
 
 mu_pi_z = np.exp(mu_gamma_z) * np.ones((obs_states, temp_orders_states - 1))
-mu_gamma_w = 3 * np.ones((obs_states, temp_orders_states - 1))   # log-precision
+mu_gamma_w = 4 * np.ones((obs_states, temp_orders_states - 1))   # log-precision
 mu_gamma_w[0, 1] = mu_gamma_w[0, 0] - np.log(2)
 mu_pi_w = np.exp(mu_gamma_w) * np.ones((hidden_states, temp_orders_states - 1))
 
@@ -138,7 +134,12 @@ FE_history = np.zeros((iterations,))
 ## bounded control ##
 
 def sigmoid(x):
-    return np.tanh(x)
+#    return x
+    return 1*np.tanh(x/5)
+
+def dsigmoid(x):
+#    return 1
+    return 1 - sigmoid(x)**2
 
 
 ## free energy functions ##
@@ -147,8 +148,7 @@ def g(x, v):
     return x
 
 def f(x, v, a):
-    aa = a
-    return np.dot(A, x) + np.dot(B, sigmoid(a))
+    return np.dot(A, x) + np.dot(B, sigmoid(a)) + np.dot(B, v)
 
 # generative model
 def g_gm(x, v):
@@ -159,51 +159,42 @@ def f_gm(x, v):
     return f(x, v, 0.0)
 
 def getObservation(x, v, a, w):
-    x[:, 1:] = f(x[:, :-1], v, a[:, :-1]) + np.dot(C, w[i, :].transpose())
+#    aaa = np.dot(C, w.transpose())
+    x[:, 1:] = f(x[:, :-1], v, a[:, :-1]) + np.dot(C, w)
+#    x[0, 1] = x[1, 0]
     x[:, 0] += dt * x[:, 1]
+#    x[0, 0] += dt * x[0, 1]
     return g(x[:, :-1], v)
 
 def F(rho, mu_x, eta, mu_gamma_z, mu_pi_w):
-    return .5 * (np.sum(np.exp(mu_gamma_z) * (rho - mu_x[:, :-1])**2) +
+    return .5 * (np.sum(np.exp(mu_gamma_z) * (rho - H*mu_x[:, :-1])**2) +
                  np.sum(mu_pi_w * (mu_x[:, 1:] - f_gm(mu_x[:, :-1], eta))**2) -
                  np.log(np.prod(np.exp(mu_gamma_z)) * np.prod(mu_pi_w)))
     
 def mode_path(mu_x):
     return np.dot(mu_x, np.eye(temp_orders_states, k=-1))
 
-x[0, 0] = 5
+x[0, 0] = 3.
+x[0, 1] = 0.
+
+mu_x[0, 0] = x[0, 0] + .1*np.random.randn()
+mu_x[0, 1] = x[0, 1] + .1*np.random.randn()
 
 # automatic differentiation
 dFdmu_states = grad(F, 1)
+#dyda_f = grad(sigmoid, 0)
 
 for i in range(iterations - 1):
-    print(i)
-#    kappa_z = 70 * np.tanh(.01*i/T) + 10.0
-    
-    # re-encode precisions
-#    mu_gamma_z[0, 1] = mu_gamma_z[0, 0] - np.log(2 * gamma)
-    mu_pi_z = np.exp(mu_gamma_z) * np.ones((obs_states, temp_orders_states - 1))
-    mu_pi_w = np.exp(mu_gamma_w) * np.ones((hidden_states, temp_orders_states - 1))
-#    mu_pi_z[0, 1] = mu_pi_z[0, 0] / (2 * gamma)
-    
-#    if i > int(50/dt):
-#        kappa_z = 100
-    
-    # include an external disturbance to test integral term
-#    if (i > iterations/3) and (i < 2*iterations/3):
-#        v[0,0] = 50.0
-#    else:
-#        v[0,0] = 0.0
-    
+    print(i)    
     
     # Analytical noise, for one extra level of generalised cooordinates, this is equivalent to an ornstein-uhlenbeck process
-    dw = - gamma * w[i, 0, 0] + w[i, 0, 1] / np.sqrt(dt)
-    dz = - gamma * z[i, 0, 0] + z[i, 0, 1] / np.sqrt(dt)
+#    dw = - gamma * w[i, 0, 0] + w[i, 0, 1] / np.sqrt(dt)
+#    dz = - gamma * z[i, 0, 0] + z[i, 0, 1] / np.sqrt(dt)
+#    
+#    w[i+1, 0, 0] = w[i, 0, 0] + dt * dw                               # noise in dynamics, at the moment not used in generative process
+#    z[i+1, 0, 0] = z[i, 0, 0] + dt * dz
     
-    w[i+1, 0, 0] = w[i, 0, 0] + dt * dw                               # noise in dynamics, at the moment not used in generative process
-    z[i+1, 0, 0] = z[i, 0, 0] + dt * dz
-    
-    y = getObservation(x, v, a, w)
+    y = getObservation(x, v, a, w[i, :, :])
     rho = y + z[i, 0, :]
     
     ### minimise free energy ###
@@ -215,60 +206,67 @@ for i in range(iterations - 1):
 #    dFdmu_x[0, 1:] += np.squeeze(mu_pi_w * [mu_x[0, :-1] + alpha * mu_x[0, :-1] - eta])
     
     # action
-    dFda = np.array([0., np.sum(mu_pi_z * (rho - mu_x[0, :-1])), 0.])
-    dFda = np.array([[0., 0., 0.], [np.sum(mu_pi_z * (rho - mu_x[0, :-1])), 0., 0.]])
+#    dFda = np.array([0., np.sum(mu_pi_z * (rho - mu_x[0, :-1])), 0.])
+    dFdy = np.array([[0., 0., 0.], [np.sum(mu_pi_z * (rho - mu_x[0, :-1])), 0., 0.]])
+    dyda = dsigmoid(a)
     
     
     # update equations
     mu_x += dt * (Dmu_x - k_mu_x * dFdmu_x)
-#    a += dt * - k_a * dFda
-
-    a += dt * - k_a * dFda
+#    a += dt * - k_a * dFdy# * dyda
     
     # save history
     rho_history[i, :] = rho
     mu_x_history[i, :, :] = mu_x
-    eta_history[i] = eta/alpha
+    eta_history[i] = eta
     a_history[i] = a
     v_history[i] = v
-#    mu_gamma_z_history[i] = mu_gamma_z
-#    mu_gamma_w_history[i] = mu_gamma_w
     
-#    xi_z_history[i, :, :] = xi_z
-#    xi_w_history[i, :, :] = xi_w
     FE_history[i] = F(rho, mu_x, eta, mu_gamma_z, mu_pi_w)
     
-#    phi_history[i] = phi
-#    psi_history[i] = psi
-#    dFdmu_gamma_z_history[i] = dFdmu_gamma_z
-#    dFdmu_gamma_w_history[i] = dFdmu_gamma_z
-#    mu_pi_z_history[i] = mu_pi_z
-#    mu_pi_w_history[i] = mu_pi_w
-#
 
 plt.figure()
-plt.plot(rho_history[:-1, 0, 0], rho_history[:-1, 0, 1], 'b')
-plt.plot(mu_x_history[:-1, 0, 0], mu_x_history[:-1, 0, 1], 'r')
+plt.plot(rho_history[:-1, 0, 0], rho_history[:-1, 1, 0], 'b')
+plt.plot(mu_x_history[:-1, 0, 0], mu_x_history[:-1, 1, 0], 'r')
+plt.plot(rho_history[0, 0, 0], rho_history[0, 0, 1], 'o')
 
 
 
     
 plt.figure()
-plt.plot(np.arange(0, T-dt, dt), rho_history[:-1,0,0], 'b', label='Measured velocity')
-plt.plot(np.arange(0, T-dt, dt), mu_x_history[:-1,0,0], 'r', label='Estimated velocity')
-plt.plot(np.arange(0, T-dt, dt), eta_history[:-1,0,0], 'g', label='Desired velocity')
-plt.title('Car velocity')
+plt.plot(np.arange(0, T-dt, dt), rho_history[:-1,0,0], 'b', label='Measured position')
+plt.plot(np.arange(0, T-dt, dt), mu_x_history[:-1,0,0], 'r', label='Estimated position')
+plt.plot(np.arange(0, T-dt, dt), eta_history[:-1,0,0], 'g', label='Desired position')
+plt.title('Position')
 plt.xlabel('Time (s)')
-plt.ylabel('Velocity (km/h)')
+#plt.ylabel('Velocity (km/h)')
 plt.legend()
 
 plt.figure()
 plt.plot(np.arange(0, T-dt, dt), rho_history[:-1,0,1], 'b', label='Measured velocity')
 plt.plot(np.arange(0, T-dt, dt), mu_x_history[:-1,0,1], 'r', label='Estimated velocity')
 plt.plot(np.arange(0, T-dt, dt), eta_history[:-1,0,1], 'g', label='Desired velocity')
-plt.title('Car velocity')
+plt.title('Velocity')
 plt.xlabel('Time (s)')
-plt.ylabel('Velocity (km/h)')
+#plt.ylabel('Velocity (km/h)')
+plt.legend()
+
+plt.figure()
+plt.plot(np.arange(0, T-dt, dt), rho_history[:-1,1,0], 'b', label='Measured position')
+plt.plot(np.arange(0, T-dt, dt), mu_x_history[:-1,1,0], 'r', label='Estimated position')
+plt.plot(np.arange(0, T-dt, dt), eta_history[:-1,1,0], 'g', label='Desired position')
+plt.title('Velocity2')
+plt.xlabel('Time (s)')
+#plt.ylabel('Velocity (km/h)')
+plt.legend()
+
+plt.figure()
+plt.plot(np.arange(0, T-dt, dt), rho_history[:-1,1,1], 'b', label='Measured acceleration')
+plt.plot(np.arange(0, T-dt, dt), mu_x_history[:-1,1,1], 'r', label='Estimated acceleration')
+plt.plot(np.arange(0, T-dt, dt), eta_history[:-1,1,1], 'g', label='Desired acceleration')
+plt.title('Acceleration')
+plt.xlabel('Time (s)')
+#plt.ylabel('Velocity (km/h)')
 plt.legend()
 #
 ##plt.figure()
