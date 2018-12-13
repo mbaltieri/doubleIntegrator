@@ -74,7 +74,7 @@ dFdmu_gamma_z = np.zeros((hidden_causes, temp_orders_states))
 Dmu_x = np.zeros((hidden_states, temp_orders_states))
 Dmu_v = np.zeros((hidden_causes, temp_orders_states))
 k_mu_x = 1                                                  # learning rate perception
-k_a = np.exp(10)                                                     # learning rate action
+k_a = np.exp(28)                                                     # learning rate action
 
 # noise on sensory input (world - generative process)
 gamma_z = 4 * np.ones((obs_states, temp_orders_states))    # log-precisions
@@ -156,7 +156,7 @@ def g(x, v):
     return np.dot(H, x)
 
 def f(x, v, a):
-    return np.dot(A, x) + np.dot(B, a) + np.dot(B, v)
+    return np.dot(A, x) + np.dot(B, sigmoid(a)) + np.dot(B, v)
 
 # generative model
 def g_gm(x, v):
@@ -240,8 +240,7 @@ for i in range(iterations - 1):
 #    mu_x[:, 0:-1] += dt * k_mu_x * (Dmu_x[:,0, None] - dFdmu_x)
 #    mu_x[:, :-1] += dt * k_mu_x * (Dmu_x - dFdmu_x)
     mu_x += dt * k_mu_x * (Dmu_x - dFdmu_x)
-#    a[1, 0] += dt * - k_a * dyda.transpose().dot(dFdy)
-#    a[1, 0] =  - 10*k_a * mu_pi_z[1,1] * (psi[1,0] - mu_x[1, 0])
+    a[1, 0] = - k_a * dyda.transpose().dot(dFdy)
     
     # save history
     y_history[i, :] = y
