@@ -17,7 +17,7 @@ dt = .01
 T = 25
 T_switch = int(T/3)
 iterations = int(T / dt)
-alpha = np.exp(2)                                              # drift in Generative Model
+alpha = np.exp(12)                                              # drift in Generative Model
 beta = alpha
 gamma = 1                                                   # drift in OU process
 plt.close('all')
@@ -53,8 +53,8 @@ eta[0, 0] = 0
 
 
 ### free energy variables
-A_gm = np.array([[0, 1], [-alpha, -alpha]])               # state transition matrix
-B_gm = np.array([[0, 0], [0, beta]])                     # input matrix
+A_gm = np.array([[-alpha, 0], [0, -alpha]])               # state transition matrix
+B_gm = np.array([[beta, 0], [0, beta]])                     # input matrix
 C_gm = np.array([[0, 0], [0, 1]])               # noise dynamics matrix
 D_gm = np.array([[1, 0], [0, 1]])
 H_gm = np.array([[1, 0], [0, 1]])               # measurement matrix
@@ -106,7 +106,7 @@ mu_gamma_z = -10 * np.ones((obs_states, temp_orders_states))    # log-precisions
 mu_pi_z = np.exp(mu_gamma_z) * np.ones((obs_states, temp_orders_states))
 mu_pi_z = np.diag(np.diag(mu_pi_z))
 
-mu_gamma_w = -1 * np.ones((obs_states, temp_orders_states))   # log-precision
+mu_gamma_w = -21 * np.ones((obs_states, temp_orders_states))   # log-precision
 #mu_gamma_w[0, 1] = mu_gamma_w[0, 0] - np.log(2)
 mu_pi_w = np.exp(mu_gamma_w) * np.ones((hidden_states, temp_orders_states))
 mu_pi_w = np.diag(np.diag(mu_pi_w))
@@ -241,7 +241,7 @@ for i in range(iterations - 1):
 #    mu_x[:, :-1] += dt * k_mu_x * (Dmu_x - dFdmu_x)
     mu_x += dt * k_mu_x * (Dmu_x - dFdmu_x)
 #    a[1, 0] += dt * - k_a * dyda.transpose().dot(dFdy)
-    a[1, 0] += dt * (- 10 * y[0,0] - 10 * y[1,0] - 10 * y[1,1])
+    a[1, 0] += dt * (- 10 * (y[0,0] - mu_x[0,0]) - 10 * (y[1,0] - mu_x[1,0]) - 10 * (y[1,1] - mu_x[1,1]))
     
     # save history
     y_history[i, :] = y
