@@ -47,10 +47,6 @@ def doubleInt():
     x_hat = np.zeros((variables, 1))
     x_dot_hat = np.zeros((variables, 1))
     
-    A_c = np.array([[1, 0], [0, 1]])               # state transition matrix
-    B_c = np.array([[1, 0], [0, 1]])               # input matrix
-    H_c = np.array([[-1, -1]])             # measurement matrix
-    
     V = np.zeros((iterations, variables, variables))
     V_dot = np.zeros((variables, variables))
     L = np.zeros((variables, variables))
@@ -75,7 +71,6 @@ def doubleInt():
     # initialise state
     #x = np.random.randn(variables, 1)
     x = 10 * np.random.rand(variables, 1) - 5
-    x_hat = 10 * np.random.rand(variables, 1) - 5
     x_hat = x + .1 * np.random.rand(variables, 1)
     
     # use Riccati equations solver in scipy
@@ -89,7 +84,7 @@ def doubleInt():
     
     for i in range(iterations-1):
         # simulate real dynamics
-        x_dot = np.dot(A, x) + np.dot(B, sigmoid(u)) + np.dot(C, w[[i], :].transpose())
+        x_dot = np.dot(A, x) + np.dot(B, u) + np.dot(C, w[[i], :].transpose())
         x += dt * x_dot
         
         y = np.dot(H, x) + np.dot(D, z[[i], :].transpose())
