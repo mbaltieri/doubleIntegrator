@@ -14,10 +14,10 @@ import scipy.linalg as splin
 from autograd import grad, jacobian
 
 dt = .01
-T = 15
+T = 25
 T_switch = int(T/3)
 iterations = int(T / dt)
-alpha = np.exp(12)                                              # drift in Generative Model
+alpha = np.exp(2)                                              # drift in Generative Model
 beta = alpha
 gamma = 1                                                   # drift in OU process
 plt.close('all')
@@ -44,7 +44,7 @@ D = np.array([[1, 0], [0, 1]])
 H = np.array([[1, 0], [0, 1]])               # measurement matrix
 
 v = np.zeros((hidden_causes, temp_orders_states - 1))
-y = np.zeros((obs_states, temp_orders_states - 1))
+y = np.zeros((obs_states, temp_orders_states))
 eta = np.zeros((hidden_causes, temp_orders_states - 1))
 
 eta[0, 0] = 0
@@ -53,8 +53,8 @@ eta[0, 0] = 0
 
 
 ### free energy variables
-A_gm = -np.array([[alpha, 0], [0, alpha]])               # state transition matrix
-B_gm = np.array([[beta, 0], [0, beta]])                     # input matrix
+A_gm = np.array([[0, 1], [-alpha, -alpha]])               # state transition matrix
+B_gm = np.array([[0, 0], [0, beta]])                     # input matrix
 C_gm = np.array([[0, 0], [0, 1]])               # noise dynamics matrix
 D_gm = np.array([[1, 0], [0, 1]])
 H_gm = np.array([[1, 0], [0, 1]])               # measurement matrix
@@ -106,7 +106,7 @@ mu_gamma_z = -10 * np.ones((obs_states, temp_orders_states))    # log-precisions
 mu_pi_z = np.exp(mu_gamma_z) * np.ones((obs_states, temp_orders_states))
 mu_pi_z = np.diag(np.diag(mu_pi_z))
 
-mu_gamma_w = -22 * np.ones((obs_states, temp_orders_states))   # log-precision
+mu_gamma_w = -1 * np.ones((obs_states, temp_orders_states))   # log-precision
 #mu_gamma_w[0, 1] = mu_gamma_w[0, 0] - np.log(2)
 mu_pi_w = np.exp(mu_gamma_w) * np.ones((hidden_states, temp_orders_states))
 mu_pi_w = np.diag(np.diag(mu_pi_w))
@@ -114,7 +114,7 @@ mu_pi_w = np.diag(np.diag(mu_pi_w))
 
 # history
 x_history = np.zeros((iterations, hidden_states, temp_orders_states))
-y_history = np.zeros((iterations, obs_states, temp_orders_states - 1))
+y_history = np.zeros((iterations, obs_states, temp_orders_states))
 v_history = np.zeros((iterations, hidden_causes, temp_orders_states - 1))
 psi_history = np.zeros((iterations, obs_states, temp_orders_states - 1))
 mu_x_history = np.zeros((iterations, hidden_states, temp_orders_states))
@@ -170,7 +170,7 @@ def getObservation(x, v, a, w):
     x[:, 1:] = f(x[:, :-1], v, a) + np.dot(C, w[:, None])
     x[:, 0] += dt * x[:, 1]
 #    return g(x[:, 1:], v)
-    return g(x[:, :-1], v)
+    return g(x, v)
 
 #def F(psi, mu_x, eta, mu_pi_z, mu_pi_w):
 #    return .5 * np.dot(np.dot((psi - np.dot(H_gm, mu_x[:, :-2])).transpose(), mu_pi_z), (psi - np.dot(H_gm, mu_x[:, :-2]))) + \
@@ -206,7 +206,7 @@ for i in range(iterations - 1):
 #    w[i+1, 0, 0] = w[i, 0, 0] + dt * dw                               # noise in dynamics, at the moment not used in generative process
 #    z[i+1, 0, 0] = z[i, 0, 0] + dt * dz
     
-    y = getObservation(x, v, a, w[i, :])
+    y = getObservation(x, v, a, np.dot(sigma_w, w[i, :]))
     
 #    x[:, 1:] = np.dot(A, x[:, :-1]) + np.dot(B, a) + np.dot(sigma_w, w[i, :, None])
 #    x[:, 0] += dt*x[:, 1]
@@ -215,7 +215,7 @@ for i in range(iterations - 1):
 #    
 #    y = np.dot(H, x[:, :-1]) #+ np.dot(D, np.diagonal(z[[i]]))
     
-    psi = y + np.dot(sigma_z, z[i, :, None])
+    psi = y[:,:-1] + np.dot(sigma_z, z[i, :, None])
     
     ### minimise free energy ###
     # perception
@@ -241,7 +241,7 @@ for i in range(iterations - 1):
 #    mu_x[:, :-1] += dt * k_mu_x * (Dmu_x - dFdmu_x)
     mu_x += dt * k_mu_x * (Dmu_x - dFdmu_x)
 #    a[1, 0] += dt * - k_a * dyda.transpose().dot(dFdy)
-    a[1, 0] += dt * (- 0 * psi[0,0] - 1 * psi[1,0])
+    a[1, 0] += dt * (- 10 * y[0,0] - 10 * y[1,0] - 10 * y[1,1])
     
     # save history
     y_history[i, :] = y
