@@ -48,12 +48,12 @@ def doubleInt():
     
     A = np.array([[0, 1], [0, 0]])               # state transition matrix
     B = np.array([[0], [1]])                     # input matrix
-    C = .1 * np.array([[0, 0], [0, 1]])               # dynamics noise matrix
-    D = np.array([[1, 0], [0, 1]])               # observations noise matrix
+    C = np.exp(-1) * np.array([[0, 0], [0, 1]])               # dynamics noise matrix
+    D = np.exp(-4) * np.array([[1, 0], [0, 1]])               # observations noise matrix
     H = np.array([[1, 0], [0, 1]])               # measurement matrix
     
-    w = 1*np.random.randn(iterations, variables)
-    z = .01*np.random.randn(iterations, variables)
+    w = np.random.randn(iterations, variables)
+    z = np.random.randn(iterations, variables)
     
     # controller
     Q = np.array([[1, 0], [0, 1]])
