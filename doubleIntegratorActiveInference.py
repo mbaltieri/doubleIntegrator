@@ -11,13 +11,35 @@ Implementation of a standard double integrator system, \ddot{q} = u.
 import autograd.numpy as np
 import matplotlib.pyplot as plt
 import scipy.linalg as splin
-from autograd import grad, jacobian
+from autograd import grad
+
+### define font size for plots ###
+#
+SMALL_SIZE = 16
+MEDIUM_SIZE = 20
+BIGGER_SIZE = 22
+
+plt.rc('font', size=MEDIUM_SIZE)            # controls default text sizes
+plt.rc('axes', titlesize=MEDIUM_SIZE)       # fontsize of the axes title
+plt.rc('axes', labelsize=SMALL_SIZE)        # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SMALL_SIZE)       # fontsize of the tick labels
+plt.rc('ytick', labelsize=SMALL_SIZE)       # fontsize of the tick labels
+plt.rc('legend', fontsize=SMALL_SIZE)       # legend fontsize
+plt.rc('figure', titlesize=BIGGER_SIZE)     # fontsize of the figure title
+#
 
 dt = .01
-T = 15
+T = 25
 iterations = int(T / dt)
-alpha = np.exp(1)                                              # drift in Generative Model
+alpha = np.exp(-1)
+alpha2 = np.exp(0)
+
+alpha = np.exp(1)
+alpha2 = np.exp(.5)
+
+alpha = np.exp(2)
 alpha2 = np.exp(1)
+
 beta = np.exp(1)
 gamma = 1                                                   # drift in OU process (if you want to simulate coloured noise)
 plt.close('all')
@@ -39,8 +61,6 @@ H = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])               # measurement matr
 # parameters for generative model
 A_gm = np.array([[0, 1, 0], [-alpha, -alpha2, 0], [0, 0, 0]])               # state transition matrix
 B_gm = np.array([[0, 0, 0], [0, beta, 0], [0, 0, 0]])                     # input matrix
-C_gm = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 0]])               # noise dynamics matrix
-D_gm = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 0]])
 H_gm = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 0]])               # measurement matrix
 
 
@@ -64,6 +84,7 @@ def g(x, v):
 
 def f(x, v, a):
     return np.dot(A, x) + np.dot(B, a) + np.dot(B, v)
+#    return np.dot(A, x) + np.dot(B, sigmoid(a)) + np.dot(B, v)
 
 # generative model
 def g_gm(x, v):
@@ -92,9 +113,7 @@ def F(psi, mu_x, eta, mu_pi_z, mu_pi_w):
 def mode_path(mu_x):
     return np.dot(mu_x, np.eye(temp_orders_states, k=-1))
 
-def doubleIntAI():
-
-        
+def doubleIntAI(): 
     # environment parameters
     x = np.zeros((hidden_states, temp_orders_states))           # position
     
@@ -115,7 +134,7 @@ def doubleIntAI():
     k_a = np.exp(14)                                                     # learning rate action
     
     # noise on sensory input (world - generative process)
-    gamma_z = 9 * np.ones((obs_states, obs_states))    # log-precisions
+    gamma_z = 0 * np.ones((obs_states, obs_states))    # log-precisions
     #gamma_z[:,1] = gamma_z[:,0] - np.log(2 * gamma)
     pi_z = np.zeros((obs_states, obs_states))
     np.fill_diagonal(pi_z, np.exp(gamma_z))
@@ -123,7 +142,7 @@ def doubleIntAI():
     z = np.random.randn(iterations, obs_states)
     
     # noise on motion of hidden states (world - generative process)
-    gamma_w = 6                                                  # log-precision
+    gamma_w = 2                                                  # log-precision
     pi_w = np.zeros((hidden_states, hidden_states))
     np.fill_diagonal(pi_w, np.exp(gamma_w))
     sigma_w = np.linalg.inv(splin.sqrtm(pi_w))
@@ -131,16 +150,15 @@ def doubleIntAI():
     
     
     # agent's estimates of the noise (agent - generative model)
-    mu_gamma_z = -8 * np.ones((obs_states, obs_states))    # log-precisions
+    mu_gamma_z = -8 * np.identity((obs_states))    # log-precisions
     mu_gamma_z[1, 1] = mu_gamma_z[0, 0] - np.log(2 * gamma)
     mu_gamma_z[2, 2] = mu_gamma_z[1, 1] - np.log(2 * gamma)
-    mu_pi_z = np.exp(mu_gamma_z) * np.ones((obs_states, obs_states))
-    mu_pi_z = np.diag(np.diag(mu_pi_z))
+    mu_pi_z = np.exp(mu_gamma_z) * np.identity((obs_states))
     
-    mu_gamma_w = -1 * np.ones((hidden_states, hidden_states))   # log-precision
-    #mu_gamma_w[0, 1] = mu_gamma_w[0, 0] - np.log(2)
-    mu_pi_w = np.exp(mu_gamma_w) * np.ones((hidden_states, hidden_states))
-    mu_pi_w = np.diag(np.diag(mu_pi_w))
+    mu_gamma_w = -1 * np.identity((hidden_states))   # log-precision
+    mu_gamma_w[1, 1] = mu_gamma_w[0, 0] - np.log(2 * gamma)
+    mu_gamma_w[2, 2] = mu_gamma_w[1, 1] - np.log(2 * gamma)
+    mu_pi_w = np.exp(mu_gamma_w) * np.identity((hidden_states))
     
     
     # history
@@ -201,11 +219,12 @@ psi_history = np.zeros((simulations_n, iterations, obs_states, temp_orders_state
 mu_x_history = np.zeros((simulations_n, iterations, hidden_states, temp_orders_states))
 
 plt.figure(figsize=(9, 6))
+plt.title('Double integrator - Active inference')
 plt.xlabel('Position ($m$)')
 plt.ylabel('Velocity ($m/s$)')
 for k in range(simulations_n):
     psi_history[k,:,:,:], mu_x_history[k,:,:,:] = doubleIntAI()
-    plt.plot(psi_history[k,:-1, 0, 0], psi_history[k,:-1, 1, 0])
-    plt.plot(mu_x_history[k, :-1, 0, 0], mu_x_history[k, :-1, 1, 0])
+    plt.plot(psi_history[k,:-1, 0, 0], psi_history[k,:-1, 1, 0], 'b')
+    plt.plot(mu_x_history[k, :-1, 0, 0], mu_x_history[k, :-1, 1, 0], 'r')
     plt.plot(psi_history[k, 0, 0, 0], psi_history[k, 0, 1, 0], 'o')
-    plt.plot(mu_x_history[k, 0, 0, 0], mu_x_history[k, 0, 1, 0], 'o')
+#    plt.plot(mu_x_history[k, 0, 0, 0], mu_x_history[k, 0, 1, 0], 'o')
