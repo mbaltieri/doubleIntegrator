@@ -44,20 +44,20 @@ def doubleInt():
     x = np.zeros((variables, 1))
     x_dot = np.zeros((variables, 1))
     y = np.zeros((variables, 1))
-    u = 0
+    u = np.zeros((variables, 1))
     
     A = np.array([[0, 1], [0, 0]])               # state transition matrix
-    B = np.array([[0], [1]])                     # input matrix
+    B = np.array([[0, 0], [0, 1]])                     # input matrix
     C = np.exp(-1) * np.array([[0, 0], [0, 1]])               # dynamics noise matrix
-    D = np.exp(-4) * np.array([[1, 0], [0, 1]])               # observations noise matrix
+    D = np.exp(0) * np.array([[1, 0], [0, 1]])               # observations noise matrix
     H = np.array([[1, 0], [0, 1]])               # measurement matrix
     
     w = np.random.randn(iterations, variables)
     z = np.random.randn(iterations, variables)
     
     # controller
-    Q = np.array([[1, 0], [0, 1]])
-    R = 4
+    Q = 1*np.array([[1, 0], [0, 1]])
+    R = 1
     
     x_hat = np.zeros((variables, 1))
     x_dot_hat = np.zeros((variables, 1))
@@ -78,14 +78,14 @@ def doubleInt():
     x_history = np.zeros((iterations, variables, 1))
     x_dot_history = np.zeros((iterations, variables, 1))
     y_history = np.zeros((iterations, variables, 1))
-    u_history = np.zeros((iterations, 1))
+    u_history = np.zeros((iterations, variables, 1))
     
     x_hat_history = np.zeros((iterations, variables, 1))
     x_dot_hat_history = np.zeros((iterations, variables, 1))
     
     # initialise state
     #x = np.random.randn(variables, 1)
-    x = 10 * np.random.rand(variables, 1) - 5
+    x = 500 * np.random.rand(variables, 1) - 250
     x_hat = x + .1 * np.random.rand(variables, 1)
     
     # use Riccati equations solver in scipy, assuming the system is LTI
@@ -106,7 +106,7 @@ def doubleInt():
         
         # control dynamics
         # (estimate state for output feedback)
-        x_dot_hat = np.dot(A, x_hat) + np.dot(B, u) + np.dot(K, (y - np.dot(H, x_hat)))
+        x_dot_hat = np.dot(A, x_hat) + np.dot(K, (y - np.dot(H, x_hat))) + np.dot(B, u)
         P_dot = np.dot(A, P[i, :, :]) + np.dot(P[i, :, :], A.transpose()) + np.dot(C, C.transpose()) - np.dot(K, np.dot(np.dot(D, D.transpose()), K.transpose()))
         K = np.dot(P[i, :, :], np.dot(H.transpose(), np.linalg.inv(np.dot(D, D.transpose()))))
         
@@ -127,22 +127,29 @@ def doubleInt():
         x_hat_history[i,:,:] = x_hat
         x_dot_hat_history[i,:,:] = x_dot_hat
         
-    return y_history, x_hat_history
+    return y_history, x_hat_history, u_history
 
 
 simulations_n = 5
 y_history = np.zeros((simulations_n, iterations, variables, 1))
 x_hat_history = np.zeros((simulations_n, iterations, variables, 1))
+u_history = np.zeros((simulations_n, iterations, variables, 1))
 
 plt.figure(figsize=(9, 6))
 plt.title('Double integrator - LQG')
 plt.xlabel('Position ($m$)')
 plt.ylabel('Velocity ($m/s$)')
 for k in range(simulations_n):
-    y_history[k,:,:,:], x_hat_history[k,:,:,:] = doubleInt()
+    y_history[k,:,:,:], x_hat_history[k,:,:,:], u_history[k,:,:,:] = doubleInt()
     plt.plot(y_history[k,:-1, 0, 0], y_history[k,:-1, 1, 0], 'b')
     plt.plot(x_hat_history[k, :-1, 0, 0], x_hat_history[k, :-1, 1, 0], 'r')
     plt.plot(y_history[k, 0, 0, 0], y_history[k, 0, 1, 0], 'o')
 
+plt.figure(figsize=(9, 6))
+plt.title('Control of double integrator - LQG')
+plt.xlabel('Time ($s$)')
+plt.ylabel('Control u ($m/s^2$)')
+for k in range(simulations_n):
+    plt.plot(u_history[k,:,1,0])
 #plt.figure()
 #plt.plot(u_history[:-1, :])
