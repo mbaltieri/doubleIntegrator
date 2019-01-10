@@ -29,18 +29,9 @@ plt.rc('figure', titlesize=BIGGER_SIZE)     # fontsize of the figure title
 #
 
 dt = .01
-T = 25
+T = 15
 iterations = int(T / dt)
-alpha = np.exp(-1)
-alpha2 = np.exp(0)
 
-alpha = np.exp(1)
-alpha2 = np.exp(.5)
-
-alpha = np.exp(2)
-alpha2 = np.exp(1)
-
-beta = np.exp(1)
 gamma = 1                                                   # drift in OU process (if you want to simulate coloured noise)
 plt.close('all')
 small_value = np.exp(-50)
@@ -57,11 +48,6 @@ B = np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]])                     # input matr
 C = np.array([[0, 0, 0], [0, 1, 0], [0, 0, 0]])               # noise dynamics matrix
 D = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
 H = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])               # measurement matrix
-
-# parameters for generative model
-A_gm = np.array([[0, 1, 0], [-alpha, -alpha2, 0], [0, 0, 0]])               # state transition matrix
-B_gm = np.array([[0, 0, 0], [0, beta, 0], [0, 0, 0]])                     # input matrix
-H_gm = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 0]])               # measurement matrix
 
 
 ### FUNCTIONS ###
@@ -87,10 +73,10 @@ def f(x, v, a):
 #    return np.dot(A, x) + np.dot(B, sigmoid(a)) + np.dot(B, v)
 
 # generative model
-def g_gm(x, v):
-    return g(x, v)
+def g_gm(x, v, H_gm):
+    return np.dot(H_gm, x)
 
-def f_gm(x, v):
+def f_gm(x, v, A_gm, B_gm):
     # no action in generative model, a = 0.0
     return np.dot(A_gm, x) + np.dot(B_gm, v)
 
@@ -105,15 +91,15 @@ def getObservation(x, v, a, w):
 #                np.dot(np.dot((mu_x[:, 1:-1] - f_gm(mu_x[:, :-2], eta)).transpose(), mu_pi_w), (mu_x[:, 1:-1] - f_gm(mu_x[:, :-2], eta))) - \
 #                np.trace(np.log(mu_pi_z * mu_pi_w))
                 
-def F(psi, mu_x, eta, mu_pi_z, mu_pi_w):
+def F(psi, mu_x, eta, mu_pi_z, mu_pi_w, A_gm, B_gm, H_gm):
     return .5 * np.dot(np.dot((psi - np.dot(H_gm, mu_x[:, :-1])).transpose(), mu_pi_z), (psi - np.dot(H_gm, mu_x[:, :-1]))) + \
-                np.dot(np.dot((mu_x[:, 1:] - f_gm(mu_x[:, :-1], eta)).transpose(), mu_pi_w), (mu_x[:, 1:] - f_gm(mu_x[:, :-1], eta))) - \
+                np.dot(np.dot((mu_x[:, 1:] - f_gm(mu_x[:, :-1], eta, A_gm, B_gm)).transpose(), mu_pi_w), (mu_x[:, 1:] - f_gm(mu_x[:, :-1], eta, A_gm, B_gm))) - \
                 np.trace(np.log(mu_pi_z * mu_pi_w))
     
 def mode_path(mu_x):
     return np.dot(mu_x, np.eye(temp_orders_states, k=-1))
 
-def doubleIntAI(): 
+def doubleIntAI(simulation):    
     # environment parameters
     x = np.zeros((hidden_states, temp_orders_states))           # position
     
@@ -123,8 +109,35 @@ def doubleIntAI():
 
     
     ### free energy variables
+    # parameters for generative model
+    if simulation == 0:
+        alpha = np.exp(2)
+        alpha2 = np.exp(1)
+    elif simulation == 1:
+        alpha = np.exp(1)
+        alpha2 = np.exp(.5)
+    elif simulation == 2:
+        alpha = np.exp(-1)
+        alpha2 = np.exp(0)
+    elif simulation == 3:
+        alpha = np.exp(2)
+        alpha2 = np.exp(1)
+    
+    beta = np.exp(1)
+    
+    
+    A_gm = np.array([[0, 1, 0], [-alpha, -alpha2, 0], [0, 0, 0]])               # state transition matrix
+    B_gm = np.array([[0, 0, 0], [0, beta, 0], [0, 0, 0]])                     # input matrix
+    H_gm = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 0]])               # measurement matrix
+    
+    # actions
     a = np.zeros((hidden_states, temp_orders_states - 1))
+    
+    # states
     mu_x = np.zeros((hidden_states, temp_orders_states))
+    
+    # inputs
+    v = np.zeros((hidden_causes, temp_orders_causes - 1))
     
     # minimisation variables and parameters
     dFdmu_x = np.zeros((hidden_states, temp_orders_states))
@@ -168,7 +181,7 @@ def doubleIntAI():
     a_history = np.zeros((iterations, obs_states, temp_orders_states))    
     FE_history = np.zeros((iterations,))
     
-    x = 10 * np.random.rand(hidden_states, temp_orders_states) - 5
+    x = 300 * np.random.rand(hidden_states, temp_orders_states) - 150
     x[1,0] = x[0,1]
     x[2,0] = x[1,1]
     x[2,1] = 0.
@@ -182,8 +195,10 @@ def doubleIntAI():
     dFdmu_states = grad(F, 1)
     
     for i in range(iterations - 1):
+        if simulation == 3 and i >= iterations/2:
+            v[1,0] = 50
         
-        mu_x_history[i, :, :] = mu_x                # save it at the very beginning since the jump is rather quick
+        mu_x_history[i, :, :] = mu_x                # save it at the very beginning since the first jump is rather quick
         
         y[:, :] = getObservation(x, v, a, np.dot(np.dot(C, sigma_w), w[i, :]))
         y[2, 0] = y[1, 1]                           # manually assign the acceleration as observed by the agent
@@ -192,7 +207,7 @@ def doubleIntAI():
         
         ### minimise free energy ###
         # perception
-        dFdmu_x = dFdmu_states(psi, mu_x, eta, mu_pi_z, mu_pi_w)
+        dFdmu_x = dFdmu_states(psi, mu_x, eta, mu_pi_z, mu_pi_w, A_gm, B_gm, H_gm)
         Dmu_x = mode_path(mu_x)
         
         # action
@@ -207,24 +222,41 @@ def doubleIntAI():
         # save history
         y_history[i, :] = y
         psi_history[i, :] = psi
-#        mu_x_history[i, :, :] = mu_x
+        mu_x_history[i, :, :] = mu_x
         a_history[i] = a
         
-        FE_history[i] = F(psi, mu_x, eta, mu_gamma_z, mu_pi_w)
+        FE_history[i] = F(psi, mu_x, eta, mu_gamma_z, mu_pi_w, A_gm, B_gm, H_gm)
     
-    return psi_history, mu_x_history
+    return psi_history, mu_x_history, a_history
 
 simulations_n = 5
 psi_history = np.zeros((simulations_n, iterations, obs_states, temp_orders_states))
 mu_x_history = np.zeros((simulations_n, iterations, hidden_states, temp_orders_states))
+a_history = np.zeros((simulations_n, iterations, hidden_states, temp_orders_states))
+
+simulation = 3
+# 0: high spring stifness, strong damping
+# 1: intermediate spring stifness, intermediate damping
+# 2: low spring stifness, weak damping
+# 3: as in simulation 0, but now we introduce an external force not modeled by the agent
 
 plt.figure(figsize=(9, 6))
 plt.title('Double integrator - Active inference')
 plt.xlabel('Position ($m$)')
 plt.ylabel('Velocity ($m/s$)')
 for k in range(simulations_n):
-    psi_history[k,:,:,:], mu_x_history[k,:,:,:] = doubleIntAI()
+    psi_history[k,:,:,:], mu_x_history[k,:,:,:], a_history[k,:,:,:] = doubleIntAI(simulation)
     plt.plot(psi_history[k,:-1, 0, 0], psi_history[k,:-1, 1, 0], 'b')
     plt.plot(mu_x_history[k, :-1, 0, 0], mu_x_history[k, :-1, 1, 0], 'r')
-    plt.plot(psi_history[k, 0, 0, 0], psi_history[k, 0, 1, 0], 'o')
-#    plt.plot(mu_x_history[k, 0, 0, 0], mu_x_history[k, 0, 1, 0], 'o')
+    plt.plot(psi_history[k, 0, 0, 0], psi_history[k, 0, 1, 0], 'o', label='Agent ' + str(k+1))
+plt.legend(loc=1)
+
+plt.figure(figsize=(9, 6))
+plt.title('Action of double integrator - Active inference')
+plt.xlabel('Time ($s$)')
+plt.ylabel('Action a ($m/s^2$)')
+for k in range(simulations_n):
+    plt.plot(np.arange(0, T, dt), a_history[k,:,1,0], label='Agent ' + str(k+1))
+plt.xlim(0, T)
+plt.xticks(np.arange(0, T+1, 1))
+plt.legend(loc=1)
