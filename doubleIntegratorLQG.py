@@ -29,8 +29,7 @@ plt.rc('figure', titlesize=BIGGER_SIZE)     # fontsize of the figure title
 
 plt.close('all')
 dt = .01
-T = 15
-iterations = int(T / dt)
+
 
 variables = 2
 
@@ -39,7 +38,7 @@ def sigmoid(x):
     return np.tanh(x)
 
 
-def doubleInt(simulation):
+def doubleInt(simulation, iterations):    
     # real dynamics
     x = np.zeros((variables, 1))
     x_dot = np.zeros((variables, 1))
@@ -102,7 +101,7 @@ def doubleInt(simulation):
     
     for i in range(iterations-1):
         # simulate real dynamics
-        if simulation == 2 and i >= iterations/2:
+        if simulation == 2 and i >= iterations/3:
             I = 50
             
         u = a + I
@@ -143,16 +142,21 @@ def doubleInt(simulation):
         
     return y_history, x_hat_history, a_history
 
+simulation = 2
+# 0: all inputs u available to Kalman filter
+# 1: no inputs u available to Kalman filter
+# 2: only motor actions a available to Kalman filter
+
+if simulation == 2:
+    T = 30
+else:
+    T = 15
+iterations = int(T / dt)
 
 simulations_n = 5
 y_history = np.zeros((simulations_n, iterations, variables, 1))
 x_hat_history = np.zeros((simulations_n, iterations, variables, 1))
 u_history = np.zeros((simulations_n, iterations, variables, 1))
-
-simulation = 2
-# 0: all inputs u available to Kalman filter
-# 1: no inputs u available to Kalman filter
-# 2: only motor actions a available to Kalman filter
 
 plt.figure(figsize=(9, 6))
 if simulation == 0:
@@ -164,7 +168,7 @@ elif simulation == 2:
 plt.xlabel('Position ($m$)')
 plt.ylabel('Velocity ($m/s$)')
 for k in range(simulations_n):
-    y_history[k,:,:,:], x_hat_history[k,:,:,:], u_history[k,:,:,:] = doubleInt(simulation)
+    y_history[k,:,:,:], x_hat_history[k,:,:,:], u_history[k,:,:,:] = doubleInt(simulation, iterations)
     plt.plot(y_history[k,:-1, 0, 0], y_history[k,:-1, 1, 0], 'b')
     plt.plot(x_hat_history[k, :-1, 0, 0], x_hat_history[k, :-1, 1, 0], 'r')
     plt.plot(y_history[k, 0, 0, 0], y_history[k, 0, 1, 0], 'o', label='Agent ' + str(k+1))
@@ -183,9 +187,12 @@ elif simulation == 2:
 plt.xlabel('Time ($s$)')
 plt.ylabel('Action, $a$ ($m/s^2$)')
 for k in range(simulations_n):
-    plt.plot(np.arange(0, T, dt), u_history[k,:,1,0], label='Agent ' + str(k+1))
+    plt.plot(np.arange(0, T-dt, dt), a_history[k,:-1,1,0], label='Agent ' + str(k+1))
 plt.xlim(0, T)
-plt.xticks(np.arange(0, T+1, 1))
+if simulation == 2:
+    plt.xticks(np.arange(0, T+1, 2))
+else:
+    plt.xticks(np.arange(0, T+1, 1))
 if simulation == 0:
     plt.legend(loc=1)
 else:

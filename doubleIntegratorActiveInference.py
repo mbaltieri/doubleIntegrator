@@ -29,8 +29,6 @@ plt.rc('figure', titlesize=BIGGER_SIZE)     # fontsize of the figure title
 #
 
 dt = .01
-T = 15
-iterations = int(T / dt)
 
 gamma = 1                                                   # drift in OU process (if you want to simulate coloured noise)
 plt.close('all')
@@ -99,7 +97,7 @@ def F(psi, mu_x, eta, mu_pi_z, mu_pi_w, A_gm, B_gm, H_gm):
 def mode_path(mu_x):
     return np.dot(mu_x, np.eye(temp_orders_states, k=-1))
 
-def doubleIntAI(simulation):    
+def doubleIntAI(simulation, iterations):    
     # environment parameters
     x = np.zeros((hidden_states, temp_orders_states))           # position
     
@@ -229,26 +227,32 @@ def doubleIntAI(simulation):
     
     return psi_history, mu_x_history, a_history
 
-simulations_n = 5
-psi_history = np.zeros((simulations_n, iterations, obs_states, temp_orders_states))
-mu_x_history = np.zeros((simulations_n, iterations, hidden_states, temp_orders_states))
-a_history = np.zeros((simulations_n, iterations, hidden_states, temp_orders_states))
-
 simulation = 3
 # 0: high spring stifness, strong damping
 # 1: intermediate spring stifness, intermediate damping
 # 2: low spring stifness, weak damping
 # 3: as in simulation 0, but now we introduce an external force not modeled by the agent
 
+if simulation == 3:
+    T = 30
+else:
+    T = 15
+iterations = int(T / dt)
+
+simulations_n = 5
+psi_history = np.zeros((simulations_n, iterations, obs_states, temp_orders_states))
+mu_x_history = np.zeros((simulations_n, iterations, hidden_states, temp_orders_states))
+a_history = np.zeros((simulations_n, iterations, hidden_states, temp_orders_states))
+
 plt.figure(figsize=(9, 6))
 plt.title('Double integrator - Active inference')
 plt.xlabel('Position ($m$)')
 plt.ylabel('Velocity ($m/s$)')
 for k in range(simulations_n):
-    psi_history[k,:,:,:], mu_x_history[k,:,:,:], a_history[k,:,:,:] = doubleIntAI(simulation)
+    psi_history[k,:,:,:], mu_x_history[k,:,:,:], a_history[k,:,:,:] = doubleIntAI(simulation, iterations)
     plt.plot(psi_history[k,:-1, 0, 0], psi_history[k,:-1, 1, 0], 'b')
     plt.plot(mu_x_history[k, :-1, 0, 0], mu_x_history[k, :-1, 1, 0], 'r')
-    plt.plot(psi_history[k, 0, 0, 0], psi_history[k, 0, 1, 0], 'o', label='Agent ' + str(k+1))
+    plt.plot(psi_history[k, 0, 0, 0], psi_history[k, 0, 1, 0], 'o', markersize = 15, label='Agent ' + str(k+1))
 plt.legend(loc=1)
 
 plt.figure(figsize=(9, 6))
@@ -256,7 +260,10 @@ plt.title('Action of double integrator - Active inference')
 plt.xlabel('Time ($s$)')
 plt.ylabel('Action a ($m/s^2$)')
 for k in range(simulations_n):
-    plt.plot(np.arange(0, T, dt), a_history[k,:,1,0], label='Agent ' + str(k+1))
+    plt.plot(np.arange(0, T-dt, dt), a_history[k,:-1,1,0], label='Agent ' + str(k+1))
 plt.xlim(0, T)
-plt.xticks(np.arange(0, T+1, 1))
+if simulation == 3:
+    plt.xticks(np.arange(0, T+1, 2))
+else:
+    plt.xticks(np.arange(0, T+1, 1))
 plt.legend(loc=1)
