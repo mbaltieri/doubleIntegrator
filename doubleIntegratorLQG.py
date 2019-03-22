@@ -12,6 +12,8 @@ import numpy as np
 import scipy.linalg
 import matplotlib.pyplot as plt
 
+#np.random.seed(42)
+
 ### define font size for plots ###
 #
 SMALL_SIZE = 16
@@ -58,7 +60,7 @@ def doubleInt(simulation, iterations):
     
     # controller
     Q = 1*np.array([[1, 0], [0, 1]])
-    R = 4
+    R = 4*np.array([[1, 0], [0, 1]])
     
     x_hat = np.zeros((variables, 1))
     x_dot_hat = np.zeros((variables, 1))
@@ -81,6 +83,7 @@ def doubleInt(simulation, iterations):
     y_history = np.zeros((iterations, variables, 1))
     u_history = np.zeros((iterations, variables, 1))
     a_history = np.zeros((iterations, variables, 1))
+    I_history = np.zeros((iterations, variables, 1))
     
     x_hat_history = np.zeros((iterations, variables, 1))
     x_dot_hat_history = np.zeros((iterations, variables, 1))
@@ -91,18 +94,22 @@ def doubleInt(simulation, iterations):
     x_hat = x + .1 * np.random.rand(variables, 1)
     
     # use Riccati equations solver in scipy, assuming the system is LTI
-    #P = scipy.linalg.solve_continuous_are(A.transpose(), H.transpose(), np.dot(C, C.transpose()), np.dot(D, D.transpose()))
-    #V = scipy.linalg.solve_continuous_are(A, B, Q, R)
+    # P = scipy.linalg.solve_continuous_are(A.transpose(), H.transpose(), np.dot(C, C.transpose()), np.dot(D, D.transpose()))
+    # V = scipy.linalg.solve_continuous_are(A, B, Q, R)
     
-    for i in range(iterations-1, 1, -1):
-        V_dot = np.dot(A.transpose(), V[i, :, :]) + np.dot(V[i, :, :], A) + Q - np.dot(L.transpose(), np.dot(R, L))
-        V[i-1, :, :] = V[i, :, :] + dt * V_dot
-        L = np.dot(1/R, np.dot(B.transpose(), V[i, :, :]))
+    # use this method to avoid bad approximations due to random initialization of V
+    if simulation == 2:
+        V = scipy.linalg.solve_continuous_are(A, B, Q, R)
+    else:
+        for i in range(iterations-1, 1, -1):
+            V_dot = np.dot(A.transpose(), V[i, :, :]) + np.dot(V[i, :, :], A) + Q - np.dot(L.transpose(), np.dot(R, L))
+            V[i-1, :, :] = V[i, :, :] + dt * V_dot
+            L = np.dot(np.linalg.inv(R), np.dot(B.transpose(), V[i, :, :]))
     
     for i in range(iterations-1):
         # simulate real dynamics
-        if simulation == 2 and i >= iterations/3:
-            I = 50
+        if simulation == 2 and i >= iterations/2:
+            I[1,0] = 50
             
         u = a + I
         x_dot = np.dot(A, x) + np.dot(B, u) + np.dot(C, w[[i], :].transpose())
@@ -126,7 +133,10 @@ def doubleInt(simulation, iterations):
         P[i+1, :, :] = P[i, :, :] + dt * P_dot
         
         # (create controller)
-        L = np.dot(1/R, np.dot(B.transpose(), V[i, :, :]))
+        if simulation == 2:
+            L = np.dot(np.linalg.inv(R), np.dot(B.transpose(), V))
+        else:
+            L = np.dot(np.linalg.inv(R), np.dot(B.transpose(), V[i, :, :]))
         
         a = - np.dot(L, x_hat)    
         
@@ -136,27 +146,28 @@ def doubleInt(simulation, iterations):
         y_history[i,:,:] = y
         u_history[i,:] = u
         a_history[i,:] = a
+        I_history[i,:] = I
         
         x_hat_history[i,:,:] = x_hat
         x_dot_hat_history[i,:,:] = x_dot_hat
         
-    return y_history, x_hat_history, a_history
+    return y_history, x_hat_history, u_history, a_history, I_history
 
-simulation = 2
+simulation = 0
 # 0: all inputs u available to Kalman filter
 # 1: no inputs u available to Kalman filter
 # 2: only motor actions a available to Kalman filter
 
-if simulation == 2:
-    T = 30
-else:
-    T = 15
+
+T = 15
 iterations = int(T / dt)
 
 simulations_n = 5
 y_history = np.zeros((simulations_n, iterations, variables, 1))
 x_hat_history = np.zeros((simulations_n, iterations, variables, 1))
 u_history = np.zeros((simulations_n, iterations, variables, 1))
+a_history = np.zeros((simulations_n, iterations, variables, 1))
+I_history = np.zeros((simulations_n, iterations, variables, 1))
 
 plt.figure(figsize=(9, 6))
 if simulation == 0:
@@ -164,37 +175,37 @@ if simulation == 0:
 elif simulation == 1:
     plt.title('Double integrator - LQG, no input $a$ in KBF')
 elif simulation == 2:
-    plt.title('Double integrator - LQG, only input $a$ in KBF')
+    plt.title('Double integrator - LQG, no external force in KBF')
 plt.xlabel('Position ($m$)')
 plt.ylabel('Velocity ($m/s$)')
 for k in range(simulations_n):
-    y_history[k,:,:,:], x_hat_history[k,:,:,:], u_history[k,:,:,:] = doubleInt(simulation, iterations)
+    y_history[k,:,:,:], x_hat_history[k,:,:,:], u_history[k,:,:,:], a_history[k,:,:,:], I_history[k,:,:,:] = doubleInt(simulation, iterations)
     plt.plot(y_history[k,:-1, 0, 0], y_history[k,:-1, 1, 0], 'b')
     plt.plot(x_hat_history[k, :-1, 0, 0], x_hat_history[k, :-1, 1, 0], 'r')
-    plt.plot(y_history[k, 0, 0, 0], y_history[k, 0, 1, 0], 'o', label='Agent ' + str(k+1))
+    plt.plot(y_history[k, 0, 0, 0], y_history[k, 0, 1, 0], 'o', markersize = 15, label='Agent ' + str(k+1))
 if simulation == 0:
     plt.legend(loc=1)
+elif simulation == 2:
+    plt.legend(loc=4)
 else:
     plt.legend(loc=2)
+    
 
 plt.figure(figsize=(9, 6))
-if simulation == 0:
-    plt.title('Action of double integrator - LQG')
-elif simulation == 1:
-    plt.title('Action of double integrator - LQG, no input $a$ in KBF')
-elif simulation == 2:
-    plt.title('Action of double integrator - LQG, only input $a$ in KBF')
+plt.title('Action of double integrator - LQG')
 plt.xlabel('Time ($s$)')
 plt.ylabel('Action, $a$ ($m/s^2$)')
 for k in range(simulations_n):
     plt.plot(np.arange(0, T-dt, dt), a_history[k,:-1,1,0], label='Agent ' + str(k+1))
+plt.plot(np.arange(0, T-dt, dt), I_history[2,:-1,1,0], 'k', label='Ext. force')
 plt.xlim(0, T)
-if simulation == 2:
-    plt.xticks(np.arange(0, T+1, 2))
-else:
-    plt.xticks(np.arange(0, T+1, 1))
+plt.ylim(-250, 500)
+plt.xticks(np.arange(0, T+1, 1))
 if simulation == 0:
+    plt.legend(loc=1)
+elif simulation == 2:
     plt.legend(loc=1)
 else:
     plt.legend(loc=2)
+
 

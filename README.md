@@ -4,7 +4,8 @@ This problem represents the simplest single-degree-of-freedom translational and 
 This example was used to show in a very simple set up the differences in implementation of a method based on the separation principle of control theory, i.e. LQG [1], [2], and a method not using this explicit set of assumptions, i.e. active inference [3], [4].
 The implications were first explained in [5], suggesting that the LQG approach fundamentally inspiring most of the work in psychology and neuroscience may present some intrinsic limitations. Active inference is then proposed as an alternative. A more complete version version of this manuscript is near completion.
 
-
+## Requirements
+The code requires at the moment the 'autograd' package for automatic differentiation, see https://github.com/HIPS/autograd.
 
 
 [1]: Anderson, Brian, and John B. Moore. "Optimal control: linear quadratic methods." (1990).  

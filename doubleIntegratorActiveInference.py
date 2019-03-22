@@ -178,6 +178,7 @@ def doubleIntAI(simulation, iterations):
     mu_x_history = np.zeros((iterations, hidden_states, temp_orders_states))
     a_history = np.zeros((iterations, obs_states, temp_orders_states))    
     FE_history = np.zeros((iterations,))
+    v_history = np.zeros((iterations, hidden_causes, temp_orders_states - 1))
     
     x = 300 * np.random.rand(hidden_states, temp_orders_states) - 150
     x[1,0] = x[0,1]
@@ -222,10 +223,11 @@ def doubleIntAI(simulation, iterations):
         psi_history[i, :] = psi
         mu_x_history[i, :, :] = mu_x
         a_history[i] = a
+        v_history[i] = v
         
         FE_history[i] = F(psi, mu_x, eta, mu_gamma_z, mu_pi_w, A_gm, B_gm, H_gm)
     
-    return psi_history, mu_x_history, a_history
+    return psi_history, mu_x_history, a_history, v_history
 
 simulation = 3
 # 0: high spring stifness, strong damping
@@ -233,23 +235,21 @@ simulation = 3
 # 2: low spring stifness, weak damping
 # 3: as in simulation 0, but now we introduce an external force not modeled by the agent
 
-if simulation == 3:
-    T = 30
-else:
-    T = 15
+T = 15
 iterations = int(T / dt)
 
 simulations_n = 5
 psi_history = np.zeros((simulations_n, iterations, obs_states, temp_orders_states))
 mu_x_history = np.zeros((simulations_n, iterations, hidden_states, temp_orders_states))
 a_history = np.zeros((simulations_n, iterations, hidden_states, temp_orders_states))
+v_history = np.zeros((simulations_n, iterations, hidden_causes, temp_orders_states - 1))
 
 plt.figure(figsize=(9, 6))
 plt.title('Double integrator - Active inference')
 plt.xlabel('Position ($m$)')
 plt.ylabel('Velocity ($m/s$)')
 for k in range(simulations_n):
-    psi_history[k,:,:,:], mu_x_history[k,:,:,:], a_history[k,:,:,:] = doubleIntAI(simulation, iterations)
+    psi_history[k,:,:,:], mu_x_history[k,:,:,:], a_history[k,:,:,:], v_history[k,:,:,:] = doubleIntAI(simulation, iterations)
     plt.plot(psi_history[k,:-1, 0, 0], psi_history[k,:-1, 1, 0], 'b')
     plt.plot(mu_x_history[k, :-1, 0, 0], mu_x_history[k, :-1, 1, 0], 'r')
     plt.plot(psi_history[k, 0, 0, 0], psi_history[k, 0, 1, 0], 'o', markersize = 15, label='Agent ' + str(k+1))
@@ -261,9 +261,14 @@ plt.xlabel('Time ($s$)')
 plt.ylabel('Action a ($m/s^2$)')
 for k in range(simulations_n):
     plt.plot(np.arange(0, T-dt, dt), a_history[k,:-1,1,0], label='Agent ' + str(k+1))
+if simulation == 3:
+    plt.plot(np.arange(0, T-dt, dt), v_history[2,:-1,1,0], 'k', label='Ext. force')
 plt.xlim(0, T)
+plt.ylim(-250, 500)
 if simulation == 3:
     plt.xticks(np.arange(0, T+1, 2))
 else:
     plt.xticks(np.arange(0, T+1, 1))
 plt.legend(loc=1)
+
+plt.show
