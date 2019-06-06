@@ -9,3 +9,5 @@ figures/DoubleIntegratorLQGAction.pdf
 figures/DoubleIntegratorLQGNoInput.pdf
 figures/DoubleIntegratorLQGNoInputAction.pdf
 settings.json
+figures/
+.vscode/
