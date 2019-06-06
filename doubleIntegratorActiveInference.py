@@ -213,11 +213,6 @@ def doubleIntAI(simulation, iterations):
         dFdy = np.dot(mu_pi_z, (psi - mu_x[:, :-1]))
         dyda = np.ones((obs_states, temp_orders_states - 1))
         
-        
-        # update equations
-        mu_x += dt * k_mu_x * (Dmu_x - dFdmu_x)
-        a[1, 0] += dt * - k_a * dyda.transpose().dot(dFdy)
-        
         # save history
         y_history[i, :] = y
         psi_history[i, :] = psi
@@ -226,10 +221,15 @@ def doubleIntAI(simulation, iterations):
         v_history[i] = v
         
         FE_history[i] = F(psi, mu_x, eta, mu_gamma_z, mu_pi_w, A_gm, B_gm, H_gm)
+        
+        
+        # update equations
+        mu_x += dt * k_mu_x * (Dmu_x - dFdmu_x)
+        a[1, 0] += dt * - k_a * dyda.transpose().dot(dFdy)
     
     return psi_history, mu_x_history, a_history, v_history
 
-simulation = 3
+simulation = 0
 # 0: high spring stifness, strong damping
 # 1: intermediate spring stifness, intermediate damping
 # 2: low spring stifness, weak damping

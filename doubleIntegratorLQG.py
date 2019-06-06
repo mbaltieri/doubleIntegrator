@@ -153,7 +153,7 @@ def doubleInt(simulation, iterations):
         
     return y_history, x_hat_history, u_history, a_history, I_history
 
-simulation = 0
+simulation = 1
 # 0: all inputs u available to Kalman filter
 # 1: no inputs u available to Kalman filter
 # 2: only motor actions a available to Kalman filter
@@ -173,7 +173,7 @@ plt.figure(figsize=(9, 6))
 if simulation == 0:
     plt.title('Double integrator - LQG')
 elif simulation == 1:
-    plt.title('Double integrator - LQG, no input $a$ in KBF')
+    plt.title('Double integrator - LQG, no efference copy')
 elif simulation == 2:
     plt.title('Double integrator - LQG, no external force in KBF')
 plt.xlabel('Position ($m$)')
@@ -192,12 +192,13 @@ else:
     
 
 plt.figure(figsize=(9, 6))
-plt.title('Action of double integrator - LQG')
+plt.title('Action of double integrator - LQG, no efference copy')
 plt.xlabel('Time ($s$)')
 plt.ylabel('Action, $a$ ($m/s^2$)')
 for k in range(simulations_n):
     plt.plot(np.arange(0, T-dt, dt), a_history[k,:-1,1,0], label='Agent ' + str(k+1))
-plt.plot(np.arange(0, T-dt, dt), I_history[2,:-1,1,0], 'k', label='Ext. force')
+if simulation == 2:
+    plt.plot(np.arange(0, T-dt, dt), I_history[2,:-1,1,0], 'k', label='Ext. force')
 plt.xlim(0, T)
 plt.ylim(-250, 500)
 plt.xticks(np.arange(0, T+1, 1))
